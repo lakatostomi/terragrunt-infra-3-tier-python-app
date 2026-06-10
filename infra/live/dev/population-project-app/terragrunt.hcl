@@ -137,61 +137,61 @@ inputs = {
     }
   }
 
-  # cloud_run_services = {
-  #   backend_service = {
-  #     location             = local.region
-  #     service_name         = "population-app-backend-service"
-  #     deletion_protection  = false
-  #     ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"
-  #     invoker_iam_disabled = true
-  #     containers = {
-  #       "backend-service-1" = {
-  #         name           = "backend-service-1"
-  #         repository_ref = "backend_data_ref"
-  #         ports = {
-  #           container_port = 8080
-  #         }
-  #       }
-  #     }
-  #     scaling = {
-  #       max_instance_count = 1
-  #       max_instance_count = 2
-  #     }
-  #     vpc_access = {
-  #       subnetwork_name = local.app_subnet
-  #     }
-  #     project_service_account_key = "backend-runtime-sa"
-  #   }
+  cloud_run_services = {
+    backend_service = {
+      location             = local.region
+      service_name         = "population-app-backend-service"
+      deletion_protection  = false
+      ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+      invoker_iam_disabled = true
+      containers = {
+        "backend-service-1" = {
+          name           = "backend-service-1"
+          repository_ref = "backend_data_ref"
+          ports = {
+            container_port = 8080
+          }
+        }
+      }
+      scaling = {
+        max_instance_count = 1
+        max_instance_count = 2
+      }
+      vpc_access = {
+        subnetwork_name = local.app_subnet
+      }
+      project_service_account_key = "backend-runtime-sa"
+    }
 
-  #   frontend_service = {
-  #     location             = local.region
-  #     service_name         = "population-app-frontend-service"
-  #     deletion_protection  = false
-  #     ingress              = "INGRESS_TRAFFIC_ALL"
-  #     invoker_iam_disabled = true
-  #     containers = {
-  #       "frontend-service-1" = {
-  #         name           = "frontend-service-1"
-  #         repository_ref = "frontend_data_ref"
-  #         ports = {
-  #           container_port = 8080
-  #         }
-  #         envs = {
-  #         "CLOUD_API_SERVER" = "https://population-app-backend-service-307608633870.europe-west1.run.app"
-  #       }
-  #       }
-  #     }
-  #     scaling = {
-  #       max_instance_count = 1
-  #       max_instance_count = 2
-  #     }
-  #     vpc_access = {
-  #       subnetwork_name = local.app_subnet
-  #       egress = "ALL_TRAFFIC"
-  #     }
-  #     project_service_account_key = "frontend-runtime-sa"
-  #   }
-  # }
+    frontend_service = {
+      location             = local.region
+      service_name         = "population-app-frontend-service"
+      deletion_protection  = false
+      ingress              = "INGRESS_TRAFFIC_ALL"
+      invoker_iam_disabled = true
+      containers = {
+        "frontend-service-1" = {
+          name           = "frontend-service-1"
+          repository_ref = "frontend_data_ref"
+          ports = {
+            container_port = 8080
+          }
+          envs = {
+            "CLOUD_API_SERVER" = "https://population-app-backend-service-307608633870.europe-west1.run.app"
+          }
+        }
+      }
+      scaling = {
+        max_instance_count = 1
+        max_instance_count = 2
+      }
+      vpc_access = {
+        subnetwork_name = local.app_subnet
+        egress          = "ALL_TRAFFIC"
+      }
+      project_service_account_key = "frontend-runtime-sa"
+    }
+  }
 
   secrets = local.app_secrets
 }

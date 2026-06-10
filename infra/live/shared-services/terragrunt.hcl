@@ -88,46 +88,46 @@ inputs = {
     }
   }
 
-  # sql_instances = {
-  #   shared-app-db = {
-  #     name                = "shared-app-db"
-  #     database_version    = "POSTGRES_17"
-  #     project             = local.project_id
-  #     region              = local.region
-  #     availability_type   = "REGIONAL"
-  #     user_labels         = {}
-  #     tier                = "db-g1-small"
-  #     edition             = "ENTERPRISE"
-  #     disk_size           = 10
-  #     disk_type           = "PD_HDD"
-  #     deletion_protection = false
-  #     ip_configuration = {
-  #       ipv4_enabled       = false
-  #       private_network    = local.self_vpc_name
-  #       allocated_ip_range = null
-  #     }
-  #     psc_config = {
-  #       allowed_consumer_projects = [local.project_id, local.routing_project_id]
+  sql_instances = {
+    shared-app-db = {
+      name                = "shared-app-db"
+      database_version    = "POSTGRES_17"
+      project             = local.project_id
+      region              = local.region
+      availability_type   = "REGIONAL"
+      user_labels         = {}
+      tier                = "db-g1-small"
+      edition             = "ENTERPRISE"
+      disk_size           = 10
+      disk_type           = "PD_HDD"
+      deletion_protection = false
+      ip_configuration = {
+        ipv4_enabled       = false
+        private_network    = local.self_vpc_name
+        allocated_ip_range = null
+      }
+      psc_config = {
+        allowed_consumer_projects = [local.project_id, local.routing_project_id]
 
-  #       auto_connections = {
-  #         consumer_network            = local.routing_vpc_name
-  #         consumer_service_project_id = local.routing_project_id
-  #       }
-  #     }
-  #     users = {
-  #       "app-user" = {
-  #         user_name     = local.sql_user_name
-  #         user_password = local.sql_password
-  #       }
-  #     }
-  #     dns_zone = {
-  #       name           = "db-populationapp"
-  #       dns_name       = "populationapp.internal."
-  #       recordset_name = "db."
-  #     }
-  #     databases = {
-  #       "population-data" = "population_data"
-  #     }
-  #   }
-  # }
+        auto_connections = {
+          consumer_network            = local.routing_vpc_name
+          consumer_service_project_id = local.routing_project_id
+        }
+      }
+      users = {
+        "app-user" = {
+          user_name     = local.sql_user_name
+          user_password = local.sql_password
+        }
+      }
+      dns_zone = {
+        name           = "db-populationapp"
+        dns_name       = "populationapp.internal."
+        recordset_name = "db."
+      }
+      databases = {
+        "population-data" = "population_data"
+      }
+    }
+  }
 }

@@ -75,11 +75,11 @@ inputs = {
     }
   }
 
-  # subnet_iam = {
-  #   "${local.region}/${local.app_subnet}" = [
-  #     local.frontend_dev_sa,
-  #     local.backend_dev_sa
-  #     ]
-  # }
-  # enable_cloud_run_direct_egress = true
+  subnet_iam = {
+    "${local.region}/${local.app_subnet}" = [
+      local.frontend_dev_sa,
+      local.backend_dev_sa
+    ]
+  }
+  enable_cloud_run_direct_egress = true
 }
