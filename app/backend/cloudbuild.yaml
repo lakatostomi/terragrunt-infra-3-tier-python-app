@@ -1,0 +1,17 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'buildx',
+        'build',
+        '--platform=linux/amd64',
+        '-t',
+        'europe-west1-docker.pkg.dev/$PROJECT_ID/populationapp-backend/backend_app:${_APP_VERSION}',
+        '--push',
+        '.'
+      ]
+    id: 'Build backend app image'
+substitutions:
+    _APP_VERSION: latest
+options:
+  logging: CLOUD_LOGGING_ONLY

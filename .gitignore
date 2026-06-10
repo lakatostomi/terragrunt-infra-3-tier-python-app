@@ -47,6 +47,7 @@ terragrunt-debug.tfvars.json
 
 # End of https://www.toptal.com/developers/gitignore/api/terraform,terragrunt
 
+.git
 __pycache__
 **.log
 .DS_Store

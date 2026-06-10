@@ -12,9 +12,10 @@ import requests
 import streamlit as st
 
 # ─── Config ────────────────────────────────────────────────────────────────────
-API_HOST = os.environ.get("API_HOST", "localhost")
-API_PORT = os.environ.get("API_PORT", "8000")
-BASE_URL = f"http://{API_HOST}:{API_PORT}"
+LOCAL_API_HOST = os.environ.get("API_HOST", "localhost")
+LOCAL_API_PORT = os.environ.get("API_PORT", "8000")
+CLOUD_API_SERVER = os.environ.get("CLOUD_SERVER", None)
+BASE_URL = f"http://{LOCAL_API_HOST}:{LOCAL_API_PORT}" if not CLOUD_API_SERVER else f"{CLOUD_API_SERVER}"
 COUNTRIES_PATH = "/countries"
 
 PAGE_SIZE_CODE = 20

@@ -85,10 +85,9 @@ class GoogleSecretManagerConfigSettingsSource(PydanticBaseSettingsSource):
 class Settings(BaseSettings):
     PROJECT_ID: str
     TABLE_ID: str
-    LOCAL_POSTGRES_HOST: str | None = None
+    POSTGRES_HOST: str
     POSTGRES_USER: str 
     POSTGRES_PASSWORD: str
-    INSTANCE_UNIX_SOCKET: str | None = None
 
     model_config = SettingsConfigDict(
         case_sensitive=False, env_file=".env", env_file_encoding="utf-8"

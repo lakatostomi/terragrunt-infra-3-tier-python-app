@@ -1,0 +1,164 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  #  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+
+variables:
+  TG_PROVIDER_CACHE: "$TG_PROVIDER_CACHE"
+  TG_PROVIDER_CACHE_DIR: $CI_PROJECT_DIR/.terragrunt-provider-cache
+  GOOGLE_CREDENTIALS: $CI_PROJECT_DIR/_auth/cicd-credentials.json
+  WIF_SERVICE_ACCOUNT: gitlab-ci-sa@my-test-project-88.iam.gserviceaccount.com
+  WIF_PROVIDER: projects/307608633870/locations/global/workloadIdentityPools/gitlab-cicd-pool/providers/gitlab-identity-provider
+  PROJECT_ID: my-test-project-88
+  WORK_DIR:
+    value: "shared-services"
+    options:
+      - shared-services
+      - dev/population-project-infra
+      - dev/population-project-app
+      - test/population-project-infra
+      - test/population-project-app
+    description: "Terragrunt directory to execute"
+
+  ACTION:
+    description: Action to be performed on the project.
+    options:
+      - apply
+      - destroy
+    value: apply
+  TG_PROVIDER_CACHE:
+    description: Enable Terragrunt provider cache.
+    value: "0"
+    options:
+      - "0"
+      - "1"  
+
+stages:
+  - gcp_auth
+  - validate
+  - plan
+  - deploy
+  - destroy
+
+cache:
+  key:
+    files:
+      - .terraform.lock.hcl
+
+  paths:
+    - .terragrunt-provider-cache/
+
+  policy: pull-push
+
+.gcp_auth:
+  image: google/cloud-sdk:slim
+  id_tokens:
+    ID_TOKEN_GCP:
+      aud: $CI_SERVER_URL
+  script:
+    - |
+      mkdir -p _auth
+      echo "$ID_TOKEN_GCP" > _auth/token.txt
+      echo "Authenticating to GCP..."
+      gcloud iam workload-identity-pools create-cred-config ${WIF_PROVIDER}\
+        --service-account=${WIF_SERVICE_ACCOUNT} \
+        --service-account-token-lifetime-seconds=3600 \
+        --output-file=${GOOGLE_CREDENTIALS} \
+        --credential-source-file=$CI_PROJECT_DIR/_auth/token.txt
+    - gcloud config set auth/credential_file_override ${GOOGLE_CREDENTIALS}
+    - gcloud auth list
+    - gcloud config set project $PROJECT_ID
+  artifacts:
+    paths:
+      - _auth/
+    expire_in: 1 day
+
+.gcp_ensure_auth:
+  before_script:
+    - |
+      if [ ! -d "$CI_PROJECT_DIR/_auth" ]; then
+         echo "Missing auth folder, please make sure your job defines _auth as an artifact!"
+         exit 1
+      fi
+    - export CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=${GOOGLE_CREDENTIALS}
+
+.terragrunt:
+  before_script:
+    - !reference [.gcp_ensure_auth, before_script]
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com".insteadOf https://gitlab.com
+    - terraform -v
+    - terragrunt -v
+  image:
+    name: alpine/terragrunt:tf1.15.2
+  artifacts:
+    paths:
+      - _auth/
+    expire_in: "1 days"
+
+gcp_auth:
+  extends: .gcp_auth
+  stage: gcp_auth
+  
+validate:
+  extends: .terragrunt
+  stage: validate
+  interruptible: true
+  script:
+    - terragrunt run --all --queue-include-dir "${WORK_DIR}/" --non-interactive -- validate
+    - terragrunt hcl fmt --check
+    - terragrunt hcl validate
+  needs:
+    - gcp_auth
+  allow_failure: false
+  rules:
+    - if: $ACTION == "apply"  
+
+plan:
+  extends: .terragrunt
+  stage: plan
+  needs:
+    - gcp_auth
+  script: 
+    - terragrunt run --all --queue-include-dir "${WORK_DIR}/" --non-interactive -- plan -out="${CI_PROJECT_DIR}/${WORK_DIR}/plan.cache"
+  environment:
+    name: "terragrunt-${WORK_DIR}"
+    action: prepare  
+  resource_group: "terragrunt-${WORK_DIR}"
+  artifacts:
+    paths:
+      - "${CI_PROJECT_DIR}/${WORK_DIR}/plan.cache"
+    expire_in: 1 day
+  rules:
+    - if: $ACTION == "apply"    
+
+deploy:
+  extends: .terragrunt
+  stage: deploy
+  script:
+    - terragrunt run --all --queue-include-dir "${WORK_DIR}/" --non-interactive -- apply "${CI_PROJECT_DIR}/${WORK_DIR}/plan.cache" -auto-approve
+  resource_group: "terragrunt-${WORK_DIR}"
+  when: manual
+  needs:
+    - gcp_auth
+    - plan
+  environment:
+    name: "terragrunt-${WORK_DIR}"
+    action: start  
+  rules:
+    - if: $ACTION == "apply"  
+
+destroy:
+  extends: .terragrunt
+  stage: destroy
+  script:
+    - terragrunt run --all --queue-include-dir "${WORK_DIR}/" --non-interactive -- destroy -auto-approve
+  when: manual
+  needs:
+    - gcp_auth
+  environment:
+    name: "terragrunt-${WORK_DIR}"
+    action: stop  
+  rules:
+    - if: $ACTION == "destroy" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
