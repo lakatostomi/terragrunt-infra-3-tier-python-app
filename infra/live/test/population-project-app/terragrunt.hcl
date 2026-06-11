@@ -14,27 +14,48 @@ terraform {
 }
 
 locals {
-  env_config    = lookup(include.root.locals.config, reverse(split("/", get_parent_terragrunt_dir("environment")))[0])
-  module_inputs = lookup(local.env_config, reverse(split("/", path_relative_to_include("root")))[0])
-  module_source = lookup(include.root.locals.config.modules, reverse(split("/", path_relative_to_include("root")))[0])
+  env_config    = lookup(include.root.locals.config, basename(dirname(get_terragrunt_dir())))
+  module_inputs = lookup(local.env_config, basename(get_terragrunt_dir()))
+  module_source = lookup(include.root.locals.config.modules, basename(get_terragrunt_dir()))
+  common_inputs = lookup(include.root.locals.config, "common_inputs")
 
-  project_id               = local.module_inputs.project_id
-  region                   = local.module_inputs.region
-  app_subnet               = local.module_inputs.app_subnet
-  app_cicd_service_account = local.module_inputs.app_cicd_service_account
-  app_secrets              = local.module_inputs.secrets
+  project_id     = local.module_inputs.project_id
+  project_number = local.module_inputs.project_number
+  region         = include.root.locals.region
+  app_subnet     = local.common_inputs.app_subnet
+  cloudbuild_sa  = local.common_inputs.app_cicd_service_account
+  app_secrets    = local.module_inputs.secrets
+  frontend_sa    = local.common_inputs.frontend_sa
+  backend_sa     = local.common_inputs.backend_sa
+  db_dns_key     = local.common_inputs.db_dns_key
+}
+
+dependency "shared-services" {
+  config_path                             = "../../shared-services"
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs = {
+    db_recordset = {
+      "shared-app-db/db-populationapp" = {
+        recordset = "db.mock.internal."
+      }
+    }
+  }
+}
+
+dependencies {
+  paths = ["../population-project-infra"]
 }
 
 inputs = {
   service_accounts = {
     frontend-runtime-sa = {
-      name = "frontend-runtime-sa"
+      name = local.frontend_sa
       iam_project_roles = [
         "roles/artifactregistry.reader",
       ]
     }
     backend-runtime-sa = {
-      name = "backend-runtime-sa"
+      name = local.backend_sa
       iam_project_roles = [
         "roles/storage.objectUser",
         "roles/artifactregistry.reader",
@@ -90,7 +111,7 @@ inputs = {
         }
       }
 
-      service_account_email = local.app_cicd_service_account
+      service_account_email = format("%s@%s.iam.gserviceaccount.com", local.cloudbuild_sa, local.project_id)
       filename              = "cloudbuild.yaml"
 
       ignored_files  = ["*.md", ".gitignore", ".dockerignore"]
@@ -112,7 +133,7 @@ inputs = {
         }
       }
 
-      service_account_email = local.app_cicd_service_account
+      service_account_email = format("%s@%s.iam.gserviceaccount.com", local.cloudbuild_sa, local.project_id)
       filename              = "cloudbuild.yaml"
 
       ignored_files  = ["*.md", ".gitignore", ".dockerignore"]
@@ -154,7 +175,7 @@ inputs = {
         }
       }
       scaling = {
-        max_instance_count = 1
+        min_instance_count = 1
         max_instance_count = 2
       }
       vpc_access = {
@@ -177,12 +198,12 @@ inputs = {
             container_port = 8080
           }
           envs = {
-            "CLOUD_API_SERVER" = "https://population-app-backend-service-773726422141.europe-west1.run.app"
+            "CLOUD_API_SERVER" = format("https://%s-%s.%s.run.app", "population-app-backend-service", local.project_number, local.region)
           }
         }
       }
       scaling = {
-        max_instance_count = 1
+        min_instance_count = 1
         max_instance_count = 2
       }
       vpc_access = {
@@ -193,6 +214,8 @@ inputs = {
     }
   }
 
-  secrets = local.app_secrets
+  secrets = merge(local.app_secrets,
+    {
+      "POSTGRES_HOST" = format("%s:5432", trimsuffix(dependency.shared-services.outputs.db_recordset[local.db_dns_key].recordset, "."))
+  })
 }
-

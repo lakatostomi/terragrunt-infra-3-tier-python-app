@@ -14,7 +14,7 @@ locals {
 
   project_id              = local.module_inputs.project_id
   routing_project_id      = local.module_inputs.routing_project_id
-  region                  = local.module_inputs.region
+  region                  = include.root.locals.region
   self_vpc_name           = local.module_inputs.self_vpc_name
   routing_vpc_name        = local.module_inputs.routing_vpc_name
   sql_user_name           = local.module_inputs.sql_user_name

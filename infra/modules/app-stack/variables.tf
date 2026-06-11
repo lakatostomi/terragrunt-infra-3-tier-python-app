@@ -242,7 +242,7 @@ variable "cloud_run_services" {
     condition = alltrue(flatten([
       for service in values(var.cloud_run_services) : [
         for container in values(service.containers) : (
-          container.repository_ref != null ||
+          container.repository_ref == null ||
           contains(keys(var.repository_data), container.repository_ref)
         )
       ]

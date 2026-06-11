@@ -14,20 +14,25 @@ terraform {
 }
 
 locals {
-  env_config    = lookup(include.root.locals.config, reverse(split("/", get_parent_terragrunt_dir("environment")))[0])
-  module_inputs = lookup(local.env_config, reverse(split("/", path_relative_to_include("root")))[0])
-  module_source = lookup(include.root.locals.config.modules, reverse(split("/", path_relative_to_include("root")))[0])
+  env_config    = lookup(include.root.locals.config, basename(dirname(get_terragrunt_dir())))
+  module_inputs = lookup(local.env_config, basename(get_terragrunt_dir()))
+  module_source = lookup(include.root.locals.config.modules, basename(get_terragrunt_dir()))
+  common_inputs = lookup(include.root.locals.config, "common_inputs")
 
-  fw-policy-name   = local.module_inputs.fw-policy-name
-  region           = local.module_inputs.region
-  app_subnet       = local.module_inputs.app_subnet
-  app_subnet_range = local.module_inputs.app_subnet_range
-  frontend_dev_sa  = local.module_inputs.frontend_dev_sa
-  backend_dev_sa   = local.module_inputs.backend_dev_sa
+  fw_policy_name    = local.common_inputs.fw_policy_name
+  project_id        = local.module_inputs.project_id
+  region            = include.root.locals.region
+  app_subnet        = local.common_inputs.app_subnet
+  app_subnet_range  = local.module_inputs.app_subnet_range
+  frontend_sa       = local.common_inputs.frontend_sa
+  backend_sa        = local.common_inputs.backend_sa
+  cloudbuild_sa     = local.common_inputs.app_cicd_service_account
+  frontend_sa_email = format("%s@%s.iam.gserviceaccount.com", local.frontend_sa, local.project_id)
+  backend_sa_email  = format("%s@%s.iam.gserviceaccount.com", local.backend_sa, local.project_id)
 }
 
 inputs = {
-  firewall_policy_name = local.fw-policy-name
+  firewall_policy_name = local.fw_policy_name
 
   subnetworks = {
     app-subnet = {
@@ -40,7 +45,7 @@ inputs = {
 
   service_accounts = {
     cloudbuild-app-sa = {
-      name = "cloudbuild-app-sa"
+      name = local.cloudbuild_sa
       iam_project_roles = [
         "roles/logging.logWriter",
         "roles/artifactregistry.writer",
@@ -62,7 +67,7 @@ inputs = {
   }
 
   firewall_rules = {
-    allow-http-between-tiers = {
+    allow-http-tiers = {
       name      = "allow-http-frontend-backend"
       direction = "INGRESS"
       allow = [
@@ -70,15 +75,15 @@ inputs = {
           protocol = "tcp"
           ports    = ["8080"]
       }]
-      source_service_accounts = [local.frontend_dev_sa]
-      target_service_accounts = [local.backend_dev_sa]
+      source_service_accounts = [local.frontend_sa_email]
+      target_service_accounts = [local.backend_sa_email]
     }
   }
 
   subnet_iam = {
-    "${local.region}/${local.app_subnet}" = [
-      local.frontend_dev_sa,
-      local.backend_dev_sa
+    "${local.region}/app-subnet" = [
+      "serviceAccount:${local.frontend_sa_email}",
+      "serviceAccount:${local.backend_sa_email}"
     ]
   }
   enable_cloud_run_direct_egress = true

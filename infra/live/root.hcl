@@ -3,6 +3,11 @@ locals {
 
   backend_bucket = lookup(local.config, "backend_bucket")
   impersonate_sa = lookup(local.config, "impersonate_sa")
+  region         = lookup(local.config, "region")
+}
+
+inputs = {
+  region = local.region
 }
 
 remote_state {

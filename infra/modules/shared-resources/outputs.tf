@@ -82,3 +82,14 @@ output "dns_zones" {
     }
   }
 }
+
+output "db_recordset" {
+  description = "Created recordset for database."
+
+  value = {
+    for k, recordset in google_dns_record_set.sql_psc_recordset :
+    k => {
+      recordset = recordset.name
+    }
+  }
+}
