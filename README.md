@@ -1,6 +1,6 @@
 # Terragrunt Multi-Environment Infrastructure — 3-Tier Python Application
 
-This repository contains the Terragrunt-based infrastructure code for deploying a three-tier Python web application on Google Cloud Platform. The primary focus of this project is to practice and demonstrate a **multi-environment infrastructure pattern using Terragrunt**, with reusable custom Terraform modules, a hierarchical configuration structure, and a GitLab CI/CD pipeline backed by Workload Identity Federation for keyless authentication.
+This repository contains the Terragrunt-based infrastructure code for deploying a three-tier Python web application on Google Cloud Platform. The primary focus of this project is to demonstrate a **multi-environment infrastructure pattern using Terragrunt**, with reusable custom Terraform modules, a hierarchical configuration structure, and a GitLab CI/CD pipeline backed by Workload Identity Federation for keyless authentication.
 
 The application itself (a population data browser with a Streamlit frontend and FastAPI backend) is the vehicle for the infrastructure — the real subject matter is the layered Terragrunt design.
 
@@ -120,11 +120,6 @@ Manages the centralised resources shared across all environments. Designed to be
 - `google_compute_subnetwork` — Routing subnet (`10.10.0.0/28`) in the routing VPC.
 - `google_dns_managed_zone` + `google_dns_record_set` (Cloud Run DNS) — A private zone for `app.run.` with a wildcard `CNAME` pointing to `app.run.` and an `A` record resolving to the PSC global address (`10.0.1.1`). The zone's `private_visibility_config` includes both the routing VPC and all consumer VPCs passed in via the `consumers` map.
 
-**Key outputs** consumed by downstream units:
-
-- `db_recordset` — Map of `{ "<sql_key>/<dns_zone_name>" => { recordset = "<fqdn>" } }`, used by `population-project-app` to construct the `POSTGRES_HOST` secret value.
-- `sql_psc_service_attachments`, `global_psc_addresses`, `psc_forwarding_rules`.
-
 ---
 
 ### `infra-stack`
@@ -141,12 +136,6 @@ Manages per-environment networking, firewall rules, service account provisioning
   - Each member in `subnet_iam` (frontend and backend runtime service accounts).
   - The Cloud Run service agent (`service-<project-number>@serverless-robot-prod.iam.gserviceaccount.com`) when `enable_cloud_run_direct_egress = true`, required for Direct VPC Egress to function.
 - `google_storage_bucket` + `google_storage_bucket_iam_binding` — Optional GCS buckets with uniform access control and configurable IAM bindings per role.
-
-**Variable validations:**
-
-- Service account name format enforced via regex `^[a-z][a-z0-9-]{4,28}[a-z0-9]$`.
-- IAM principals must start with `serviceAccount:`, `user:`, or `group:`.
-- Firewall policy rules require at least one source/destination (IP ranges or FQDNs) validated with `alltrue`.
 
 ---
 
@@ -169,6 +158,17 @@ Manages per-environment application-layer resources: container registries, CI/CD
 ---
 
 ## Networking and Connectivity
+
+## Out-of-Scope Prerequisites (Provisioned in Other Stages)
+
+This project assumes a number of foundational resources already exist and are managed outside of this repository's lifecycle. These are provisioned in separate, prerequisite stages and only **consumed** (via references, or pre-existing names/IDs) by the Terragrunt units and modules described above:
+
+- **VPC networks** — The Shared VPC host networks (both the per-environment VPCs and the routing VPC) referenced via `vpc_name` / `host_project_id` / `routing_vpc_name`.
+- **Hub-and-spoke network topology via NCC** — The Network Connectivity Center hub-and-spoke setup connecting the routing VPC (hub) to the environment VPCs (spokes) is provisioned separately; this project only attaches PSC endpoints and subnets to the existing topology.
+- **Hierarchical Firewall Policy** — The firewall policy itself, its attachment to the relevant project folder, and any baseline organization-wide rules are created in a separate stage. This project only adds additional rules (e.g. the PostgreSQL ingress rule) to the existing policy via `firewall_policy_name`.
+- **DNS peering** — Cross-project/cross-VPC DNS peering configurations are established beforehand; this project only creates private zones and recordsets that rely on that peering being in place.
+- **Workload Identity Federation (WIF) setup** — The WIF pool and provider, along with the associated service account and IAM bindings used by the CI/CD pipeline, are created ahead of time.
+- **Terraform/Terragrunt remote state backend bucket** — The GCS bucket referenced in `root.hcl` as `backend_bucket` is created in a prior bootstrap stage, not by this project.
 
 The connectivity model is built around Private Service Connect to avoid exposing any data plane traffic to the public internet:
 
@@ -194,7 +194,7 @@ The pipeline is defined in `infra/live/.gitlab-ci.yml` and is triggered on merge
 
 **Stages:** `gcp_auth` → `validate` → `plan` → `deploy` → `destroy`
 
-**Workload Identity Federation authentication:** The `gcp_auth` job uses GitLab's native OIDC `id_tokens` feature to obtain a short-lived JWT (`ID_TOKEN_GCP`), then calls `gcloud iam workload-identity-pools create-cred-config` to generate an Application Default Credentials file pointing at the WIF provider and service account. The credential file is passed forward to subsequent jobs as a GitLab artifact (expires after 1 day). No service account key JSON is stored as a CI variable.
+**Workload Identity Federation authentication:** The `gcp_auth` job uses GitLab's native OIDC `id_tokens` feature to obtain a short-lived JWT (`ID_TOKEN_GCP`), then calls `gcloud iam workload-identity-pools create-cred-config` to generate an Application Default Credentials file pointing at the WIF provider and service account. The credential file is passed forward to subsequent jobs as a GitLab artifact. No service account key JSON is stored as a CI variable.
 
 **Runtime variables:**
 
@@ -217,17 +217,17 @@ The pipeline is defined in `infra/live/.gitlab-ci.yml` and is triggered on merge
 ## Prerequisites
 
 - Terraform `>= 1.12.4`
-- Terragrunt (compatible with the `run --all --queue-include-dir` CLI)
+- Terragrunt `>= 1.0.4`
 - `google` and `google-beta` providers pinned to `7.33`
 - A GCP identity with `roles/iam.serviceAccountTokenCreator` on the Terraform impersonation SA
-- A populated `config.yaml` at `infra/live/` (not committed; contains backend bucket, impersonation SA, region, per-environment project IDs, VPC names, SQL credentials, and module source refs)
+- A populated `config.yaml` at `infra/live/` (not committed; structure can be found below)
 - For CI: A Workload Identity Pool and Provider configured in GCP to trust the GitLab project's OIDC tokens
 
 ---
 
-## Config
+## Structure of the config file
 
-**Structure of the config file**
+**config.yaml**
 
 ```yaml
 backend_bucket: 
@@ -242,7 +242,19 @@ modules:
     ref: v1.0.1
   population-project-app:
     url: https://gitlab.com/terraform_projects2/3-tier-app-tf-modules.git//app-stack
-    ref: v1.0.1
+    ref: v1.0.1 
+common_inputs:
+  fw_policy_name: 
+  app_subnet: 
+  frontend_sa: 
+  backend_sa: 
+  app_cicd_service_account: 
+  db_dns_key:
+  secrets:
+      PROJECT_ID: 
+      TABLE_ID: 
+      POSTGRES_USER: 
+      POSTGRES_PASSWORD:
 shared-services:
   inputs:
     project_id: 
@@ -250,17 +262,8 @@ shared-services:
     self_vpc_name: 
     routing_vpc_name: 
     consumers:
-      my-test-project-88: 
-      found01-f01-dev-test-service: 
-    sql_user_name: 
-    sql_password: 
-common_inputs:
-  fw_policy_name: 
-  app_subnet: 
-  frontend_sa: 
-  backend_sa: 
-  app_cicd_service_account: 
-  db_dns_key: 
+      consumer_id_1: 
+      consumer_id_2:      
 dev:
   inputs:
     project_id: 
@@ -271,12 +274,7 @@ dev:
     app_subnet_range: 
   population-project-app:  
     project_id: 
-    project_number: 
-    secrets:
-      PROJECT_ID: 
-      TABLE_ID: 
-      POSTGRES_USER: 
-      POSTGRES_PASSWORD: 
+    project_number:  
 test:
   inputs:
     project_id: 
@@ -287,10 +285,5 @@ test:
     app_subnet_range: 
   population-project-app:  
     project_id: 
-    project_number: 
-    secrets:
-      PROJECT_ID: 
-      TABLE_ID: 
-      POSTGRES_USER: 
-      POSTGRES_PASSWORD:   
+    project_number:   
 ```

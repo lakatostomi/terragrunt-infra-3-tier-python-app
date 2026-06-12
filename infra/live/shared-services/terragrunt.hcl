@@ -11,14 +11,15 @@ terraform {
 locals {
   module_inputs = lookup(include.root.locals.config, path_relative_to_include()).inputs
   module_source = lookup(include.root.locals.config.modules, path_relative_to_include())
+  db_secrets = lookup(include.root.locals.config, "common_inputs").secrets
 
   project_id              = local.module_inputs.project_id
   routing_project_id      = local.module_inputs.routing_project_id
   region                  = include.root.locals.region
   self_vpc_name           = local.module_inputs.self_vpc_name
   routing_vpc_name        = local.module_inputs.routing_vpc_name
-  sql_user_name           = local.module_inputs.sql_user_name
-  sql_password            = local.module_inputs.sql_password
+  sql_user_name           = local.db_secrets.POSTGRESS_USER
+  sql_password            = local.db_secrets.POSTGRESS_PASSWORD
   consumers               = local.module_inputs.consumers
   routing_subnet_name     = "routing-subnet"
   routing_subnet_ip_range = "10.10.0.0/28"

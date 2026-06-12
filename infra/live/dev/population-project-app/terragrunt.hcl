@@ -24,7 +24,7 @@ locals {
   region         = include.root.locals.region
   app_subnet     = local.common_inputs.app_subnet
   cloudbuild_sa  = local.common_inputs.app_cicd_service_account
-  app_secrets    = local.module_inputs.secrets
+  app_secrets    = local.common_inputs.secrets
   frontend_sa    = local.common_inputs.frontend_sa
   backend_sa     = local.common_inputs.backend_sa
   db_dns_key     = local.common_inputs.db_dns_key
