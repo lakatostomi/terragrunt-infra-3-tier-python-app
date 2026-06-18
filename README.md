@@ -192,7 +192,7 @@ The connectivity model is built around Private Service Connect to avoid exposing
 
 The pipeline is defined in `infra/live/.gitlab-ci.yml` and is triggered on merge request events, web UI triggers, and pipeline triggers.
 
-**Stages:** `gcp_auth` → `validate` → `plan` → `deploy` → `destroy`
+**Stages:** `gcp_auth` → `validate` → `plan` → `test` → `deploy` → `destroy`
 
 **Workload Identity Federation authentication:** The `gcp_auth` job uses GitLab's native OIDC `id_tokens` feature to obtain a short-lived JWT (`ID_TOKEN_GCP`), then calls `gcloud iam workload-identity-pools create-cred-config` to generate an Application Default Credentials file pointing at the WIF provider and service account. The credential file is passed forward to subsequent jobs as a GitLab artifact. No service account key JSON is stored as a CI variable.
 
@@ -203,14 +203,44 @@ The pipeline is defined in `infra/live/.gitlab-ci.yml` and is triggered on merge
 | `WORK_DIR` | `shared-services`, `dev/population-project-infra`, `dev/population-project-app`, `test/population-project-infra`, `test/population-project-app` | Terragrunt directory to target |
 | `ACTION` | `apply`, `destroy` | Operation to perform |
 | `TG_PROVIDER_CACHE` | `0`, `1` | Enable Terragrunt provider caching |
+| `CHECKOV_TEST` | `true`, `false` | Enable checkov sercurity policy test |
 
 **Key pipeline behaviours:**
 
 - `validate` runs `terragrunt run --all --queue-include-dir` scoped to `WORK_DIR`, followed by `terragrunt hcl fmt --check` and `terragrunt hcl validate`.
 - `plan` saves the plan output to `${CI_PROJECT_DIR}/${WORK_DIR}/plan.cache` and publishes it as an artifact, ensuring `deploy` applies exactly the reviewed plan.
+- `test` is an optional **Checkov** static security analysis stage that runs against the Terraform plan output before any `apply` is triggered.
 - `deploy` is `when: manual` and uses `resource_group: "terragrunt-${WORK_DIR}"` to prevent concurrent applies on the same unit.
 - `destroy` is restricted to the default branch and also `when: manual`.
 - Provider cache is stored in `.terragrunt-provider-cache/` and keyed on `.terraform.lock.hcl` using GitLab's `cache` directive with `pull-push` policy.
+
+### Checkov Policy configuration (`checkov_test.yaml`)
+
+The Checkov config targets the `terraform_plan` framework with `soft-fail: false` (hard block on any finding). Output is produced in both `cli` and `json` formats. The enabled checks cover the following domains:
+
+**IAM**
+- `CKV_GCP_46` — Default service account not used at project level
+- `CKV_GCP_41` — IAM users not assigned Service Account User / Token Creator roles at project level
+- `CKV_GCP_49` — Roles do not impersonate or manage service accounts at project level
+- `CKV_GCP_117` — Basic roles (`owner`, `editor`, `viewer`) not used at project level
+
+**Cloud Storage**
+- `CKV_GCP_29` — Uniform bucket-level access enabled
+- `CKV_GCP_78` — Versioning enabled
+- `CKV_GCP_114` — Buckets not publicly accessible
+
+**Cloud SQL**
+- `CKV_GCP_14` — Backup configuration enabled
+- `CKV_GCP_11` — No public IP assigned
+- `CKV_GCP_79` — Latest major version in use
+
+**Networking / Artifact Registry**
+- `CKV_GCP_101` — Artifact Registry repositories not publicly or anonymously accessible
+- `CKV2_GCP_12` — Compute firewall ingress does not allow unrestricted access to all ports
+- `CKV_GCP_106` — Compute firewall ingress does not allow unrestricted HTTP (port 80) access
+
+**Logging**
+- `CKV_GCP_26` — VPC Flow Logs enabled on every subnet
 
 ---
 

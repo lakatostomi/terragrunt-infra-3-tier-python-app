@@ -56,3 +56,4 @@ __pycache__
 **/bootstrap/*
 docker-compose.yml
 **/config.yaml
+**/*plan.json

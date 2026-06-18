@@ -1,0 +1,39 @@
+framework:
+  - terraform_plan
+
+evaluate-variables: true
+compact: true
+quiet: true
+output:
+  - cli
+  - json
+
+soft-fail: false
+ 
+check:
+  #IAM
+  - CKV_GCP_46 #Default Service Account is used at project level
+  - CKV_GCP_41 #Ensure that IAM users are not assigned the Service Account User or Service Account Token Creator roles at project level
+  - CKV_GCP_49 #Ensure roles do not impersonate or manage Service Accounts used at project level
+  - CKV_GCP_117 #Ensure basic roles are not used at project level.
+
+  #GCS
+  - CKV_GCP_29 #Ensure that Cloud Storage buckets have uniform bucket-level access enabled
+  - CKV_GCP_78 #Ensure Cloud storage has versioning enabled
+  - CKV_GCP_114 #GCP Storage buckets are publicly accessible to all users
+
+  #SQL
+  - CKV_GCP_14 #Ensure all Cloud SQL database instance have backup configuration enabled
+  - CKV_GCP_11 #Ensure Cloud SQL database does not have public IP
+  - CKV_GCP_79 #GCP SQL database does not use the latest Major version
+  
+  #Network
+  - CKV_GCP_101 #Ensure that Artifact Registry repositories are not anonymously or publicly accessible
+  - CKV2_GCP_12 #Ensure GCP compute firewall ingress does not allow unrestricted access to all ports
+  - CKV_GCP_106 #Ensure Google compute firewall ingress does not allow unrestricted http port 80 access
+
+  #Logging
+  - CKV_GCP_26 #Ensure that VPC Flow Logs is enabled for every subnet in a VPC Network
+  
+  
+  

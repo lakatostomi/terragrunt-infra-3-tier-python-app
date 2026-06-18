@@ -34,12 +34,20 @@ variables:
     value: "0"
     options:
       - "0"
-      - "1"  
+      - "1"
+
+  CHECKOV_TEST:
+    description: Enable checkov sercurity policy test
+    value: "false"
+    options:
+      - "true"
+      - "false"
 
 stages:
   - gcp_auth
   - validate
   - plan
+  - test
   - deploy
   - destroy
 
@@ -96,6 +104,15 @@ cache:
       - _auth/
     expire_in: "1 days"
 
+.checkov:
+  stage: test
+  allow_failure: false
+  image:
+    name: bridgecrew/checkov:latest
+    entrypoint:
+      - '/usr/bin/env'
+      - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
 gcp_auth:
   extends: .gcp_auth
   stage: gcp_auth
@@ -123,6 +140,7 @@ plan:
     - validate
   script: 
     - terragrunt run --all --queue-include-dir "${WORK_DIR}/" --non-interactive -- plan -out="${CI_PROJECT_DIR}/${WORK_DIR}/plan.cache"
+    - terragrunt run --all --queue-include-dir "${WORK_DIR}/" --non-interactive -- show -json "${CI_PROJECT_DIR}/${WORK_DIR}/plan.cache" > checkov_plan.json
   environment:
     name: "terragrunt-${WORK_DIR}"
     action: prepare  
@@ -130,9 +148,28 @@ plan:
   artifacts:
     paths:
       - "${CI_PROJECT_DIR}/${WORK_DIR}/plan.cache"
+      - checkov_plan.json
     expire_in: 1 day
   rules:
     - if: $ACTION == "apply"    
+
+checkov_test:
+  extends: .checkov
+  needs:
+    - plan
+  script:
+    - checkov -f checkov_plan.json --config-file checkov_test.yaml --output-file-path "${CI_PROJECT_DIR}/${WORK_DIR}/checkov_result.json"  
+  environment:
+    name: "terragrunt-${WORK_DIR}"
+    action: verify
+  resource_group: "terragrunt-${WORK_DIR}"
+  artifacts:
+    when: on_failure
+    paths:
+      - "${CI_PROJECT_DIR}/${WORK_DIR}/checkov_result.json"
+    expire_in: 1 days
+  rules:
+    - if: $CHECKOV_TEST == "true"
 
 deploy:
   extends: .terragrunt
@@ -158,6 +195,7 @@ destroy:
   when: manual
   needs:
     - gcp_auth
+  resource_group: "terragrunt-${WORK_DIR}"  
   environment:
     name: "terragrunt-${WORK_DIR}"
     action: stop  

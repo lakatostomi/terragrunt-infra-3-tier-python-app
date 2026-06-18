@@ -32,7 +32,7 @@ locals {
 
 dependency "shared-services" {
   config_path                             = "../../shared-services"
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "show"]
   mock_outputs = {
     db_recordset = {
       "shared-app-db/db-populationapp" = {
