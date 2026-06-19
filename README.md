@@ -47,6 +47,7 @@ The infrastructure follows a hub-and-spoke model across multiple GCP projects:
     ├── live/             # Terragrunt live configuration (all environments)
     │   ├── root.hcl                        # Root Terragrunt config (backend, providers, versions)
     │   ├── .gitlab-ci.yml                  # GitLab CI/CD pipeline
+    │   ├── checkov_test.yaml               # Checkov config file
     │   ├── shared-services/
     │   │   └── terragrunt.hcl              # Shared Cloud SQL, PSC, DNS
     │   ├── dev/
