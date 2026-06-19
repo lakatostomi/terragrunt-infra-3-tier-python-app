@@ -109,11 +109,6 @@ resource "google_dns_managed_zone" "sql_psc_managed_zone" {
   }
 }
 
-# data "google_dns_managed_zone" "sql_psc_managed_zone" {
-#     for_each    = local.dns_sql
-#   name = each.value.dns_name
-# }
-
 resource "google_dns_record_set" "sql_psc_recordset" {
   for_each = local.dns_sql
 
